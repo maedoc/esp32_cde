@@ -1,0 +1,27 @@
+# ESP-IDF Build artifacts
+build/
+sdkconfig
+sdkconfig.old
+
+# Compilation test artifacts
+*.o
+test_compile.sh
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+/tmp/
