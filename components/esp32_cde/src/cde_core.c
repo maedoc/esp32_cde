@@ -49,10 +49,10 @@ cde_handle_t cde_init(const cde_config_t* config)
             ESP_LOGE(TAG, "Failed to allocate feature buffer for sample %d", i);
             // Cleanup previous allocations
             for (int j = 0; j < i; j++) {
-                free(instance->samples[j].features);
+                heap_caps_free(instance->samples[j].features);
             }
-            free(instance->samples);
-            free(instance);
+            heap_caps_free(instance->samples);
+            heap_caps_free(instance);
             return NULL;
         }
         instance->samples[i].num_features = 0;
