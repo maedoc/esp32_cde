@@ -1,0 +1,23 @@
+menu "ESP32 CDE Configuration"
+
+    config CDE_MAX_FEATURES
+        int "Maximum number of features for CDE"
+        range 1 256
+        default 32
+        help
+            Maximum number of features that can be used in conditional density estimation.
+
+    config CDE_SAMPLE_BUFFER_SIZE
+        int "Sample buffer size"
+        range 64 4096
+        default 256
+        help
+            Size of the circular buffer for storing samples.
+
+    config CDE_USE_FLOAT_PRECISION
+        bool "Use single precision floating point"
+        default y
+        help
+            Use single precision (float) instead of double precision for calculations.
+
+endmenu
