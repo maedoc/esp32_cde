@@ -77,17 +77,17 @@ esp_err_t cde_deinit(cde_handle_t handle)
     // Free feature buffers
     for (int i = 0; i < instance->config.buffer_size; i++) {
         if (instance->samples[i].features != NULL) {
-            free(instance->samples[i].features);
+            heap_caps_free(instance->samples[i].features);
         }
     }
     
     // Free sample buffer
     if (instance->samples != NULL) {
-        free(instance->samples);
+        heap_caps_free(instance->samples);
     }
     
     // Free instance
-    free(instance);
+    heap_caps_free(instance);
     
     ESP_LOGI(TAG, "CDE deinitialized");
     return ESP_OK;
