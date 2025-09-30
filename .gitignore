@@ -24,4 +24,4 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
-/tmp/
+/tmp/test_config.txt

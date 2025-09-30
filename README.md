@@ -32,6 +32,14 @@ esp32_cde/
 ├── scripts/
 │   ├── test_qemu.sh                  # QEMU emulator test script
 │   └── build_test.sh                 # Build validation script
+├── python/                           # Python training scripts
+│   ├── cde_training.py               # MDN and MAF implementations
+│   ├── test_cde_training.py          # Training script tests
+│   ├── requirements.txt              # Python dependencies
+│   └── README.md                     # Python scripts documentation
+├── .github/
+│   └── workflows/
+│       └── ci.yml                    # GitHub Actions CI/CD pipeline
 └── test/
     └── mock_headers/                 # Mock headers for testing
 ```
@@ -85,6 +93,16 @@ idf.py flash monitor
 ```bash
 ./scripts/build_test.sh
 ./test_compile.sh
+```
+
+### Python Training Scripts
+For advanced conditional density estimation training and validation:
+```bash
+cd python
+pip install -r requirements.txt
+python test_cde_training.py     # Run tests
+python cde_training.py --test   # Quick integration test
+python cde_training.py          # Full training with visualization
 ```
 
 ## API Reference
@@ -166,6 +184,17 @@ The QEMU script will:
 - Display serial output
 - Allow interactive debugging
 
+## Continuous Integration
+
+The project includes GitHub Actions workflows that automatically:
+- Build with ESP-IDF Docker image
+- Run compilation tests
+- Test with QEMU emulation
+- Validate Python training scripts
+- Run comprehensive test suites
+
+See `.github/workflows/ci.yml` for the complete CI/CD pipeline.
+
 ## Contributing
 
 1. Follow ESP-IDF coding standards
@@ -182,3 +211,4 @@ This project is open source. Please check the repository for license details.
 - [ESP-IDF Programming Guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/)
 - [ESP32 QEMU Documentation](https://github.com/espressif/qemu)
 - [Kernel Density Estimation](https://en.wikipedia.org/wiki/Kernel_density_estimation)
+- [Python Training Scripts](python/README.md) - Advanced MDN/MAF implementations
