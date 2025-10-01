@@ -187,10 +187,9 @@ The QEMU script will:
 ## Continuous Integration
 
 The project includes GitHub Actions workflows that automatically:
+- Run Python-C validation (Python training tests and C compilation tests)
 - Build with ESP-IDF Docker image
-- Run compilation tests
 - Test with QEMU emulation
-- Validate Python training scripts
 - Run comprehensive test suites
 
 See `.github/workflows/ci.yml` for the complete CI/CD pipeline.
