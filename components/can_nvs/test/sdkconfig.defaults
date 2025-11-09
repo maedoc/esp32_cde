@@ -1,0 +1,9 @@
+# Enable Unity test framework
+CONFIG_UNITY_ENABLE_FLOAT=y
+CONFIG_UNITY_ENABLE_DOUBLE=y
+
+# NVS settings
+CONFIG_NVS_ENCRYPTION=n
+
+# Increase main task stack size for tests
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
