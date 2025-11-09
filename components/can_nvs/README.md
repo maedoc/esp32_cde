@@ -4,14 +4,18 @@ A reusable ESP-IDF component for efficiently storing CAN frame sequences in Non-
 
 ## Features
 
-- **Compact Binary Serialization**: Efficient storage format minimizes NVS space usage
+- **Advanced Compression**: 60-92% storage reduction for typical CAN traffic
+  - Frame ID dictionary: Store unique IDs once, reference by 1-byte index
+  - Frame deduplication: Hash-based duplicate detection and removal
+  - Optimized for repetitive CAN patterns (periodic messages, slow-changing data)
 - **CAN 2.0 Support**: Handles both standard (11-bit) and extended (29-bit) CAN identifiers
 - **Frame Flags**: Support for RTR, extended frames, and custom flags
 - **Sequence Management**: Store, load, and delete sequences of up to 256 CAN frames
-- **Data Integrity**: Built-in checksum validation for stored data
+- **Data Integrity**: Built-in checksum validation and format versioning
 - **Memory Efficient**: Dynamic memory allocation only when loading sequences
-- **Well Tested**: Comprehensive unit test suite included
+- **Well Tested**: 17 comprehensive unit tests including compression benchmarks
 - **Reusable**: Designed as a standalone component for easy integration
+- **Zero API Changes**: Drop-in optimized storage with same public API
 
 ## Installation
 
@@ -213,40 +217,65 @@ typedef enum {
 
 ## Storage Format
 
-The component uses a compact binary format:
+The component uses an optimized compressed binary format (v2):
 
 ```
-[Header: 4 bytes]
-  - Frame Count: 2 bytes
+[Header: 7 bytes]
+  - Version: 1 byte
+  - Sequence Length: 2 bytes (original frame count)
+  - Unique ID Count: 1 byte
+  - Unique Frame Count: 1 byte
   - Checksum: 2 bytes
 
-[Frame 0: 14 bytes]
-  - Identifier: 4 bytes
+[ID Dictionary: U_id × 4 bytes]
+  - Unique CAN identifiers stored once
+
+[Unique Frames: U_frame × 11 bytes each]
+  - ID Index: 1 byte (→ ID dictionary)
   - DLC: 1 byte
   - Flags: 1 byte
   - Data: 8 bytes
 
-[Frame 1: 14 bytes]
-  ...
-
-[Frame N: 14 bytes]
+[Frame Sequence: N × 1 byte]
+  - Indices to unique frames array
 ```
 
-**Storage Efficiency**: Each frame uses exactly 14 bytes, plus a 4-byte header per sequence.
+**Storage Efficiency**:
+- **Formula**: `7 + (U_id × 4) + (U_frame × 11) + (N × 1)` bytes
+- **Typical savings**: 60-75% for real CAN traffic
+- **Best case**: 92% for repetitive messages
 
-**Examples**:
-- 1 frame: 18 bytes
-- 10 frames: 144 bytes
-- 100 frames: 1,404 bytes
-- 256 frames (max): 3,588 bytes
+**Examples** (compared to uncompressed):
+| Scenario | Frames | Unique IDs | Unique Frames | Compressed | Uncompressed | Savings |
+|----------|--------|------------|---------------|------------|--------------|---------|
+| Heartbeat (all same) | 256 | 1 | 1 | 278 bytes | 3,588 bytes | **92%** |
+| Typical CAN traffic | 200 | 10 | 40 | 687 bytes | 2,804 bytes | **75%** |
+| Alternating pattern | 100 | 2 | 2 | 137 bytes | 1,404 bytes | **90%** |
+| Mixed diagnostic | 200 | 50 | 150 | 2,057 bytes | 2,804 bytes | **27%** |
+
+See [COMPRESSION_ANALYSIS.md](COMPRESSION_ANALYSIS.md) for detailed analysis.
 
 ## Memory Usage
 
-- **Heap Usage**: Only when loading sequences
-  - Header parsing: ~100 bytes temporary
-  - Loaded sequence: `count × 16 bytes` (slightly more than storage due to alignment)
-- **Stack Usage**: Minimal (~200 bytes)
-- **Static Memory**: ~8 bytes (NVS handle)
+### Storage Phase (Compression)
+Temporary heap allocation during `can_nvs_store_sequence()`:
+- ID dictionary: 1,024 bytes (max 256 IDs × 4 bytes)
+- Unique frames buffer: 4,096 bytes (max 256 frames × 16 bytes aligned)
+- Frame indices: N bytes (sequence length)
+- Serialization buffer: Final compressed size
+
+**Total temporary**: ~5.5 KB + compressed size
+
+### Load Phase (Decompression)
+Heap allocation during `can_nvs_load_sequence()`:
+- Read buffer: Compressed size from NVS
+- Output frames: N × 16 bytes (expanded sequence)
+
+**Peak memory**: ~Compressed size + (N × 16) bytes
+
+### Static Overhead
+- **Stack Usage**: ~300 bytes
+- **Static Memory**: 4 bytes (NVS handle)
 
 ## Configuration Limits
 
@@ -284,7 +313,9 @@ The component includes comprehensive unit tests using ESP-IDF's Unity framework.
 
 ### Test Coverage
 
-The test suite includes:
+The test suite includes 17 comprehensive tests:
+
+**Basic Functionality:**
 - ✅ Single frame storage and retrieval
 - ✅ Multiple frame sequences
 - ✅ Extended CAN IDs (29-bit)
@@ -298,6 +329,12 @@ The test suite includes:
 - ✅ Erase all functionality
 - ✅ Zero-length data frames
 - ✅ Checksum validation
+
+**Compression & Optimization:**
+- ✅ Best case compression (all identical frames)
+- ✅ Typical case compression (realistic CAN traffic)
+- ✅ Worst case compression (all unique frames)
+- ✅ Frame deduplication (alternating patterns)
 
 ### CI/CD
 

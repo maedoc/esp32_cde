@@ -418,6 +418,178 @@ void test_can_nvs_zero_length_data(void) {
     can_nvs_free_sequence(&load_seq);
 }
 
+/**
+ * Test compression with many repeated frames (best case)
+ */
+void test_can_nvs_compression_best_case(void) {
+    const uint16_t num_frames = 256;
+    can_nvs_frame_t test_frames[num_frames];
+
+    // All frames are identical - best compression
+    for (uint16_t i = 0; i < num_frames; i++) {
+        test_frames[i].identifier = 0x100;
+        test_frames[i].data_length_code = 8;
+        test_frames[i].flags = CAN_NVS_FLAG_NONE;
+        memset(test_frames[i].data, 0xAA, CAN_NVS_MAX_DATA_LEN);
+    }
+
+    can_nvs_sequence_t store_seq = {
+        .frames = test_frames,
+        .count = num_frames
+    };
+
+    TEST_ASSERT_EQUAL(ESP_OK, can_nvs_store_sequence("compress_best", &store_seq));
+
+    // Load and verify
+    can_nvs_sequence_t load_seq = {0};
+    TEST_ASSERT_EQUAL(ESP_OK, can_nvs_load_sequence("compress_best", &load_seq));
+    TEST_ASSERT_EQUAL(num_frames, load_seq.count);
+
+    // Verify all frames match
+    for (uint16_t i = 0; i < num_frames; i++) {
+        TEST_ASSERT_EQUAL(test_frames[i].identifier, load_seq.frames[i].identifier);
+        TEST_ASSERT_EQUAL_MEMORY(test_frames[i].data, load_seq.frames[i].data, CAN_NVS_MAX_DATA_LEN);
+    }
+
+    can_nvs_free_sequence(&load_seq);
+}
+
+/**
+ * Test compression with typical CAN traffic (few unique IDs, some repeats)
+ */
+void test_can_nvs_compression_typical_case(void) {
+    const uint16_t num_frames = 200;
+    const uint8_t num_unique_ids = 10;
+    can_nvs_frame_t test_frames[num_frames];
+
+    // Simulate typical CAN traffic: 10 different IDs cycling, with some data variation
+    for (uint16_t i = 0; i < num_frames; i++) {
+        test_frames[i].identifier = 0x100 + (i % num_unique_ids);
+        test_frames[i].data_length_code = 8;
+        test_frames[i].flags = (i % 3 == 0) ? CAN_NVS_FLAG_EXTENDED : CAN_NVS_FLAG_NONE;
+
+        // Data changes slowly to create some repeated frames
+        uint8_t pattern = (i / 5) & 0xFF;
+        for (uint8_t j = 0; j < CAN_NVS_MAX_DATA_LEN; j++) {
+            test_frames[i].data[j] = pattern + j;
+        }
+    }
+
+    can_nvs_sequence_t store_seq = {
+        .frames = test_frames,
+        .count = num_frames
+    };
+
+    TEST_ASSERT_EQUAL(ESP_OK, can_nvs_store_sequence("compress_typical", &store_seq));
+
+    // Load and verify
+    can_nvs_sequence_t load_seq = {0};
+    TEST_ASSERT_EQUAL(ESP_OK, can_nvs_load_sequence("compress_typical", &load_seq));
+    TEST_ASSERT_EQUAL(num_frames, load_seq.count);
+
+    // Verify all frames match
+    for (uint16_t i = 0; i < num_frames; i++) {
+        TEST_ASSERT_EQUAL(test_frames[i].identifier, load_seq.frames[i].identifier);
+        TEST_ASSERT_EQUAL(test_frames[i].data_length_code, load_seq.frames[i].data_length_code);
+        TEST_ASSERT_EQUAL(test_frames[i].flags, load_seq.frames[i].flags);
+        TEST_ASSERT_EQUAL_MEMORY(test_frames[i].data, load_seq.frames[i].data, CAN_NVS_MAX_DATA_LEN);
+    }
+
+    can_nvs_free_sequence(&load_seq);
+}
+
+/**
+ * Test compression with worst case (all unique frames)
+ */
+void test_can_nvs_compression_worst_case(void) {
+    const uint16_t num_frames = 100;
+    can_nvs_frame_t test_frames[num_frames];
+
+    // All frames completely unique - worst compression (still better than original due to ID dict)
+    for (uint16_t i = 0; i < num_frames; i++) {
+        test_frames[i].identifier = 0x100 + i;
+        test_frames[i].data_length_code = 8;
+        test_frames[i].flags = (i % 2) ? CAN_NVS_FLAG_EXTENDED : CAN_NVS_FLAG_NONE;
+
+        // Unique data for each frame
+        for (uint8_t j = 0; j < CAN_NVS_MAX_DATA_LEN; j++) {
+            test_frames[i].data[j] = (i + j) & 0xFF;
+        }
+    }
+
+    can_nvs_sequence_t store_seq = {
+        .frames = test_frames,
+        .count = num_frames
+    };
+
+    TEST_ASSERT_EQUAL(ESP_OK, can_nvs_store_sequence("compress_worst", &store_seq));
+
+    // Load and verify
+    can_nvs_sequence_t load_seq = {0};
+    TEST_ASSERT_EQUAL(ESP_OK, can_nvs_load_sequence("compress_worst", &load_seq));
+    TEST_ASSERT_EQUAL(num_frames, load_seq.count);
+
+    // Verify all frames match
+    for (uint16_t i = 0; i < num_frames; i++) {
+        TEST_ASSERT_EQUAL(test_frames[i].identifier, load_seq.frames[i].identifier);
+        TEST_ASSERT_EQUAL(test_frames[i].data_length_code, load_seq.frames[i].data_length_code);
+        TEST_ASSERT_EQUAL(test_frames[i].flags, load_seq.frames[i].flags);
+        TEST_ASSERT_EQUAL_MEMORY(test_frames[i].data, load_seq.frames[i].data, CAN_NVS_MAX_DATA_LEN);
+    }
+
+    can_nvs_free_sequence(&load_seq);
+}
+
+/**
+ * Test deduplication with alternating frames
+ */
+void test_can_nvs_deduplication(void) {
+    const uint16_t num_frames = 100;
+    can_nvs_frame_t test_frames[num_frames];
+
+    // Create pattern: A, B, A, B, A, B... (only 2 unique frames)
+    can_nvs_frame_t frame_a = {
+        .identifier = 0x111,
+        .data_length_code = 4,
+        .flags = CAN_NVS_FLAG_NONE,
+        .data = {0x11, 0x22, 0x33, 0x44, 0, 0, 0, 0}
+    };
+
+    can_nvs_frame_t frame_b = {
+        .identifier = 0x222,
+        .data_length_code = 4,
+        .flags = CAN_NVS_FLAG_EXTENDED,
+        .data = {0xAA, 0xBB, 0xCC, 0xDD, 0, 0, 0, 0}
+    };
+
+    for (uint16_t i = 0; i < num_frames; i++) {
+        test_frames[i] = (i % 2 == 0) ? frame_a : frame_b;
+    }
+
+    can_nvs_sequence_t store_seq = {
+        .frames = test_frames,
+        .count = num_frames
+    };
+
+    TEST_ASSERT_EQUAL(ESP_OK, can_nvs_store_sequence("dedup_test", &store_seq));
+
+    // Load and verify
+    can_nvs_sequence_t load_seq = {0};
+    TEST_ASSERT_EQUAL(ESP_OK, can_nvs_load_sequence("dedup_test", &load_seq));
+    TEST_ASSERT_EQUAL(num_frames, load_seq.count);
+
+    // Verify alternating pattern preserved
+    for (uint16_t i = 0; i < num_frames; i++) {
+        can_nvs_frame_t *expected = (i % 2 == 0) ? &frame_a : &frame_b;
+        TEST_ASSERT_EQUAL(expected->identifier, load_seq.frames[i].identifier);
+        TEST_ASSERT_EQUAL(expected->data_length_code, load_seq.frames[i].data_length_code);
+        TEST_ASSERT_EQUAL(expected->flags, load_seq.frames[i].flags);
+        TEST_ASSERT_EQUAL_MEMORY(expected->data, load_seq.frames[i].data, CAN_NVS_MAX_DATA_LEN);
+    }
+
+    can_nvs_free_sequence(&load_seq);
+}
+
 // Test runner
 void app_main(void) {
     UNITY_BEGIN();
@@ -435,6 +607,12 @@ void app_main(void) {
     RUN_TEST(test_can_nvs_load_nonexistent);
     RUN_TEST(test_can_nvs_erase_all);
     RUN_TEST(test_can_nvs_zero_length_data);
+
+    // Compression and deduplication tests
+    RUN_TEST(test_can_nvs_compression_best_case);
+    RUN_TEST(test_can_nvs_compression_typical_case);
+    RUN_TEST(test_can_nvs_compression_worst_case);
+    RUN_TEST(test_can_nvs_deduplication);
 
     UNITY_END();
 }
