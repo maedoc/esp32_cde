@@ -25,3 +25,7 @@ Thumbs.db
 *.tmp
 *.temp
 /tmp/test_config.txt
+
+python/libmaf.so
+.cache
+test_config.txt
