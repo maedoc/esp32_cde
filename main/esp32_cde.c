@@ -1,52 +1,49 @@
+/**
+ * @file esp32_cde.c
+ * @brief ESP32 MAF Conditional Density Estimation - Main Application
+ *
+ * This is a minimal main application for the ESP32 MAF library.
+ * For a complete example of how to use MAF, see examples/maf_demo.c
+ */
+
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_system.h"
 #include "esp_log.h"
-#include "esp32_cde.h"
+#include "maf.h"
 
-static const char *TAG = "main";
+static const char *TAG = "esp32_cde";
 
 void app_main(void)
 {
-    ESP_LOGI(TAG, "ESP32 Conditional Density Estimation Demo");
-    
-    // Initialize CDE component
-    cde_config_t config = {
-        .max_features = 16,
-        .buffer_size = 128,
-        .learning_rate = 0.01f
-    };
-    
-    cde_handle_t cde_handle = cde_init(&config);
-    if (cde_handle == NULL) {
-        ESP_LOGE(TAG, "Failed to initialize CDE");
-        return;
-    }
-    
-    ESP_LOGI(TAG, "CDE initialized successfully");
-    
-    // Demo: Add some sample data points
-    float features[] = {1.0f, 2.0f, 3.0f};
-    float target = 5.0f;
-    
-    esp_err_t ret = cde_add_sample(cde_handle, features, 3, target);
-    if (ret == ESP_OK) {
-        ESP_LOGI(TAG, "Sample added successfully");
-    } else {
-        ESP_LOGE(TAG, "Failed to add sample: %s", esp_err_to_name(ret));
-    }
-    
-    // Demo: Get density estimate
-    float density = cde_get_density(cde_handle, features, 3, target);
-    ESP_LOGI(TAG, "Density estimate: %.6f", density);
-    
-    // Cleanup
-    cde_deinit(cde_handle);
-    ESP_LOGI(TAG, "CDE demo completed");
-    
-    // Keep the task running
+    ESP_LOGI(TAG, "ESP32 MAF Conditional Density Estimation");
+    ESP_LOGI(TAG, "========================================");
+    ESP_LOGI(TAG, "");
+    ESP_LOGI(TAG, "This project provides MAF (Masked Autoregressive Flow)");
+    ESP_LOGI(TAG, "inference capabilities for ESP32.");
+    ESP_LOGI(TAG, "");
+    ESP_LOGI(TAG, "Usage:");
+    ESP_LOGI(TAG, "  1. Train a MAF model in Python:");
+    ESP_LOGI(TAG, "     cd python && python export_maf_to_c.py --output my_model.h");
+    ESP_LOGI(TAG, "");
+    ESP_LOGI(TAG, "  2. Include the model in your code:");
+    ESP_LOGI(TAG, "     #include \"my_model.h\"");
+    ESP_LOGI(TAG, "");
+    ESP_LOGI(TAG, "  3. Load and use:");
+    ESP_LOGI(TAG, "     maf_model_t* model = maf_load_model(&my_model_weights);");
+    ESP_LOGI(TAG, "     maf_sample(model, features, n_samples, samples_out, seed);");
+    ESP_LOGI(TAG, "     maf_free_model(model);");
+    ESP_LOGI(TAG, "");
+    ESP_LOGI(TAG, "See examples/maf_demo.c for complete usage examples.");
+    ESP_LOGI(TAG, "See MAF_QUICKSTART.md for detailed documentation.");
+    ESP_LOGI(TAG, "");
+    ESP_LOGI(TAG, "System Info:");
+    ESP_LOGI(TAG, "  Free heap: %lu bytes", esp_get_free_heap_size());
+    ESP_LOGI(TAG, "  ESP-IDF version: %s", esp_get_idf_version());
+
+    // Keep task alive
     while (1) {
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(pdMS_TO_TICKS(10000));
     }
 }
