@@ -120,12 +120,19 @@ static void demo_maf_log_prob(maf_model_t* model)
     };
 
     int n_tests = sizeof(test_points) / sizeof(test_points[0]);
+    
+    /* Create workspace */
+    maf_workspace_t* ws = maf_create_workspace(model);
+    if (ws == NULL) {
+        ESP_LOGE(TAG, "Failed to allocate workspace");
+        return;
+    }
 
     ESP_LOGI(TAG, "Computing log p(y|x=%.2f):", features[0]);
 
     for (int i = 0; i < n_tests; i++) {
         int64_t start_time = esp_timer_get_time();
-        float logp = maf_log_prob(model, features, test_points[i]);
+        float logp = maf_log_prob(model, ws, features, test_points[i]);
         int64_t end_time = esp_timer_get_time();
 
         ESP_LOGI(TAG, "  y=[%.2f, %.2f]: log_p = %.4f (%.1f μs)",
@@ -134,6 +141,8 @@ static void demo_maf_log_prob(maf_model_t* model)
                  logp,
                  (float)(end_time - start_time));
     }
+    
+    maf_free_workspace(ws);
 }
 
 /**

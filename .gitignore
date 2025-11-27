@@ -29,3 +29,6 @@ Thumbs.db
 python/libmaf.so
 .cache
 test_config.txt
+*.maf
+*.csv
+maf_cli

@@ -84,3 +84,40 @@ jobs:
       run: |
         cd python
         python cde_training.py --test --no-plot
+
+  benchmark:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r python/requirements.txt
+        
+    - name: Build maf_cli
+      run: |
+        gcc -O3 -ffast-math -o maf_cli main.c components/esp32_cde/src/maf.c -I components/esp32_cde/include -lm
+        
+    - name: Run Benchmark
+      run: |
+        python benchmark_c_vs_py.py
+        
+    - name: Upload maf_cli
+      uses: actions/upload-artifact@v4
+      with:
+        name: maf_cli
+        path: maf_cli
+        
+    - name: Upload benchmark plot
+      uses: actions/upload-artifact@v4
+      with:
+        name: benchmark_plot
+        path: benchmark_plot.png

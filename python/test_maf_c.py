@@ -58,6 +58,12 @@ class MAF_C_Wrapper:
         self.lib.maf_free_model.argtypes = [ctypes.c_void_p]
         self.lib.maf_free_model.restype = None
 
+        self.lib.maf_create_workspace.argtypes = [ctypes.c_void_p]
+        self.lib.maf_create_workspace.restype = ctypes.c_void_p
+
+        self.lib.maf_free_workspace.argtypes = [ctypes.c_void_p]
+        self.lib.maf_free_workspace.restype = None
+
         self.lib.maf_sample.argtypes = [
             ctypes.c_void_p,                    # model
             ctypes.POINTER(ctypes.c_float),     # features
@@ -78,6 +84,7 @@ class MAF_C_Wrapper:
 
         self.lib.maf_log_prob.argtypes = [
             ctypes.c_void_p,                    # model
+            ctypes.c_void_p,                    # workspace
             ctypes.POINTER(ctypes.c_float),     # features
             ctypes.POINTER(ctypes.c_float)      # params
         ]
@@ -168,10 +175,20 @@ class MAF_C_Wrapper:
         model_ptr = self.lib.maf_load_model(ctypes.byref(weights))
         if not model_ptr:
             raise RuntimeError("Failed to load model")
+        
+        # Create workspace
+        self._ws_ptr = self.lib.maf_create_workspace(model_ptr)
+        if not self._ws_ptr:
+            self.lib.maf_free_model(model_ptr)
+            raise RuntimeError("Failed to create workspace")
+            
         return model_ptr
 
     def free_model(self, model_ptr):
         """Free a C model."""
+        if hasattr(self, '_ws_ptr') and self._ws_ptr:
+            self.lib.maf_free_workspace(self._ws_ptr)
+            self._ws_ptr = None
         self.lib.maf_free_model(model_ptr)
 
     def sample(self, model_ptr, features, n_samples, seed=42):
@@ -240,7 +257,7 @@ class MAF_C_Wrapper:
         features_ptr = features.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
         params_ptr = params.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
 
-        return self.lib.maf_log_prob(model_ptr, features_ptr, params_ptr)
+        return self.lib.maf_log_prob(model_ptr, self._ws_ptr, features_ptr, params_ptr)
 
     def get_memory_usage(self, model_ptr):
         """Get model memory usage."""

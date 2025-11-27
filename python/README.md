@@ -64,11 +64,71 @@ The module includes three challenging conditional datasets:
 
 ## Integration with ESP32
 
-These Python scripts serve as training/validation tools for the ESP32 CDE library. The trained models can be used to:
+These Python scripts serve as training/validation tools for the ESP32 CDE library. The trained models are exported to C headers and loaded into ESP32 firmware.
 
-1. Generate reference datasets for testing the ESP32 implementation
-2. Validate density estimation accuracy
-3. Develop optimal hyperparameters for the embedded system
+### Export to ESP32
+
+The `export_maf_to_c.py` script trains a MAF model and exports it to a C header file:
+
+```bash
+# Train and export model
+python export_maf_to_c.py \
+  --dataset banana \
+  --n-flows 3 \
+  --hidden-units 32 \
+  --output ../my_model.h
+
+# This generates my_model.h with:
+# - const maf_weights_t my_model_weights structure
+# - All model weights as static const arrays
+# - Ready to include in ESP32 firmware
+```
+
+### Validation Testing
+
+Use `test_maf_c.py` to validate the C implementation:
+
+```bash
+# Runs complete validation:
+# 1. Trains model in Python
+# 2. Exports to C header
+# 3. Compiles C library
+# 4. Tests via ctypes
+# 5. Compares Python vs C outputs
+python test_maf_c.py
+
+# Expected output:
+# ✓ Log probabilities match! (0.000000 difference)
+# ✓ Model loaded: 5,008 bytes
+```
+
+### Loading in ESP32
+
+Once exported, load in ESP32 firmware:
+
+```c
+#include "maf.h"
+#include "my_model.h"  // From export_maf_to_c.py
+
+void app_main(void) {
+    // Load model
+    maf_model_t* model = maf_load_model(&my_model_weights);
+
+    // Use model
+    float features[] = {0.5f};
+    float samples[10 * 2];
+    maf_sample(model, features, 10, samples, 42);
+
+    // Cleanup
+    maf_free_model(model);
+}
+```
+
+**Complete Workflow:**
+1. **Python Training**: Train model and export to C header
+2. **ESP-IDF Build**: Include header in project, compile to flash
+3. **Runtime**: Load model from flash into RAM, use for inference
+4. **Validation**: Test ensures C and Python outputs match exactly
 
 ## Mathematical Details
 

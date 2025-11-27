@@ -63,24 +63,169 @@ python export_maf_to_c.py \
   --name maf_test
 ```
 
-### 2. Load Model in C
+### 2. Model Export Format
+
+The export script generates a C header with the following structure:
 
 ```c
+/* maf_test_model.h */
+#ifndef MAF_TEST_MODEL_H
+#define MAF_TEST_MODEL_H
+
+#include <stdint.h>
 #include "maf.h"
-#include "maf_test_model.h"
 
-// Load model
-maf_model_t* model = maf_load_model(&maf_test_weights);
-if (model == NULL) {
-    ESP_LOGE(TAG, "Failed to load MAF model");
-    return;
-}
+/*
+ * Model metadata
+ * These are copied from Python into the C structure
+ */
+static const maf_weights_t maf_test_weights = {
+    .n_flows = 3,
+    .param_dim = 2,
+    .feature_dim = 1,
+    .hidden_units = 32,
 
-ESP_LOGI(TAG, "Model loaded, memory: %zu bytes",
-         maf_get_memory_usage(model));
+    /* All data is flattened into 1D arrays */
+    .M1_data = maf_test_M1_data,        /* Shape: [n_flows * hidden_units * param_dim] */
+    .M2_data = maf_test_M2_data,        /* Shape: [n_flows * param_dim * hidden_units] */
+    .perm_data = maf_test_perm_data,    /* Shape: [n_flows * param_dim] */
+    .inv_perm_data = maf_test_inv_perm_data,
+
+    .W1y_data = maf_test_W1y_data,      /* Shape: [n_flows * hidden_units * param_dim] */
+    .W1c_data = maf_test_W1c_data,      /* Shape: [n_flows * hidden_units * feature_dim] */
+    .b1_data = maf_test_b1_data,        /* Shape: [n_flows * hidden_units] */
+    .W2_data = maf_test_W2_data,        /* Shape: [n_flows * 2*param_dim * hidden_units] */
+    .W2c_data = maf_test_W2c_data,      /* Shape: [n_flows * 2*param_dim * feature_dim] */
+    .b2_data = maf_test_b2_data         /* Shape: [n_flows * 2*param_dim] */
+};
+
+#endif
 ```
 
-### 3. Generate Samples
+**Data Layout Guarantees:**
+- All arrays are flattened 1D arrays for consistent memory layout
+- Arrays are `const` and stored in flash (read-only section)
+- Uses explicit fixed-size types (`uint16_t`, `float`) to avoid platform dependencies
+- Layer data is concatenated sequentially (layer 0, then layer 1, etc.)
+
+### 3. Model Loading in C
+
+#### Memory Layout
+
+```
+┌─────────────────────────────────────────────────┐
+│ FLASH (Read-Only Section)                       │
+│                                                 │
+│ const maf_weights_t maf_test_weights = {       │
+│     .n_flows = 3,                              │
+│     .param_dim = 2,                            │
+│     .feature_dim = 1,                          │
+│     .hidden_units = 32,                        │
+│                                                 │
+│     // All weights as const arrays in flash    │
+│     .M1_data = maf_test_M1_data,               │
+│     .W1y_data = maf_test_W1y_data,             │
+│     // ...                                      │
+│ };                                             │
+│                                                 │
+│ Total flash usage: ~5KB                         │
+└─────────────────────────────────────────────────┘
+                    ↓
+            maf_load_model(&maf_test_weights)
+                    ↓
+┌─────────────────────────────────────────────────┐
+│ HEAP (Dynamic Allocation)                       │
+│                                                 │
+│ maf_model_t {                                   │
+│     n_flows, param_dim, feature_dim,           │
+│     layers[3]                                   │
+│ };                                             │
+│                                                 │
+│ Each layer allocated separately:                │
+│   - M1: malloc(H*D*sizeof(float))              │
+│   - W1y: malloc(H*D*sizeof(float))             │
+│   - ... (all weights copied from flash)        │
+│                                                 │
+│ Total heap usage: ~5KB                          │
+└─────────────────────────────────────────────────┘
+```
+
+#### Loading Implementation (maf.c:47-142)
+
+```c
+maf_model_t* maf_load_model(const maf_weights_t* weights) {
+    // Validate input
+    if (weights == NULL) return NULL;
+
+    // Allocate model structure
+    maf_model_t* model = malloc(sizeof(maf_model_t));
+    model->n_flows = weights->n_flows;
+    model->param_dim = weights->param_dim;
+    model->feature_dim = weights->feature_dim;
+
+    // Allocate layers array
+    model->layers = calloc(weights->n_flows, sizeof(maf_layer_t));
+
+    // For each layer, copy from flash to heap
+    for (uint16_t k = 0; k < weights->n_flows; k++) {
+        // Calculate offset into flattened arrays
+        size_t offset = k * H * D;  // For layer k
+
+        // Allocate heap memory for this layer's data
+        layer->M1 = malloc(H * D * sizeof(float));
+
+        // Copy from flash using memcpy (with calculated offset)
+        memcpy(layer->M1, &weights->M1_data[offset], H * D * sizeof(float));
+
+        // Update offset for next layer
+        offset += H * D;
+    }
+
+    return model;
+}
+```
+
+**Key Design Decisions:**
+1. **Flattened Arrays**: Avoid struct padding/alignment issues by using 1D arrays
+2. **Explicit Offsets**: Calculate byte offsets at runtime, not compile time
+3. **memcpy**: Safe, portable way to copy data (handles endianness, alignment)
+4. **Separate Allocation**: Each layer allocates its own memory (allows partial failure cleanup)
+
+#### Data Integrity Protection
+
+The implementation uses multiple layers of protection:
+
+1. **Type Safety**: `uint16_t`, `float` not `int`, avoiding 32/64-bit differences
+2. **No Pointer Arithmetic on Structs**: All offsets calculated as byte offsets
+3. **memcpy with Size**: Always copy with explicit byte size (no assumptions)
+4. **ctypes Validation**: Python test recreates C struct layout to verify
+
+### 4. Build System Integration
+
+Your model header just needs to be in the include path. Three options:
+
+**Option 1: Put in main/ directory**
+```bash
+cp maf_test_model.h main/
+# Include as: #include "maf_test_model.h"
+```
+
+**Option 2: Put in component include directory**
+```bash
+cp maf_test_model.h components/esp32_cde/include/
+# Include as: #include "maf_test_model.h"
+```
+
+**Option 3: Add custom include path**
+Edit `components/esp32_cde/CMakeLists.txt`:
+```cmake
+idf_component_register(
+    SRCS "src/maf.c"
+    INCLUDE_DIRS "include" "include/models"  # Add your models directory
+)
+```
+
+### 4. Generate Samples
 
 ```c
 // Conditioning features
