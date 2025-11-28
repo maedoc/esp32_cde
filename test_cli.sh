@@ -26,7 +26,16 @@ EOF
 python3 gen_toy_data.py
 
 echo "Compiling CLI..."
-gcc -o maf_cli main.c components/esp32_cde/src/maf.c -I components/esp32_cde/include -lm
+mkdir -p cli/build
+cd cli/build
+cmake -DCMAKE_BUILD_TYPE=Release ..
+cmake --build . --config Release
+cd ../..
+if [ -f "cli/build/maf_cli" ]; then
+    cp cli/build/maf_cli .
+elif [ -f "cli/build/Release/maf_cli" ]; then
+    cp cli/build/Release/maf_cli .
+fi
 
 echo "----------------------------------------------------------------"
 echo "Test 1: Training with Headers (--skip-header)"

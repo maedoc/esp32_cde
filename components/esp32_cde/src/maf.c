@@ -344,7 +344,7 @@ void maf_inverse_layer(const maf_layer_t* layer,
 
     /* Apply inverse permutation */
     for (uint16_t i = 0; i < D; i++) {
-        x_out[layer->inv_perm[i]] = u[i];
+        x_out[i] = u[layer->inv_perm[i]];
     }
 }
 

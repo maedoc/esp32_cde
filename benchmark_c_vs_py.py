@@ -151,8 +151,34 @@ def main():
     if os.path.exists("maf_cli"):
         print("maf_cli already exists, skipping compilation.")
     else:
-        print("Compiling CLI with optimizations...")
-        subprocess.run(["gcc", "-O3", "-ffast-math", "-o", "maf_cli", "main.c", "components/esp32_cde/src/maf.c", "-I", "components/esp32_cde/include", "-lm"], check=True)
+        print("Compiling CLI with optimizations via CMake...")
+        build_dir = Path("cli/build")
+        build_dir.mkdir(parents=True, exist_ok=True)
+        
+        subprocess.run(["cmake", "-DCMAKE_BUILD_TYPE=Release", ".."], cwd=build_dir, check=True)
+        subprocess.run(["cmake", "--build", ".", "--config", "Release"], cwd=build_dir, check=True)
+        
+        # Locate and copy binary
+        exe_name = "maf_cli"
+        if os.name == 'nt':
+            exe_name += ".exe"
+            
+        possible_paths = [
+            build_dir / exe_name,
+            build_dir / "Release" / exe_name,
+            build_dir / "Debug" / exe_name
+        ]
+        
+        copied = False
+        for p in possible_paths:
+            if p.exists():
+                import shutil
+                shutil.copy(p, exe_name)
+                copied = True
+                break
+        
+        if not copied:
+            raise RuntimeError("Could not find compiled executable")
 
     c_train, c_infer, c_mean, c_std = benchmark_c(
         params, features, n_flows, hidden_units, lr, n_iter, n_samples_infer, seed

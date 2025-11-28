@@ -61,3 +61,9 @@ jobs:
         # Note: test_cli.sh attempts to rebuild via cmake. 
         # Since we already built, it should be fast/noop or just work.
         ./test_cli.sh
+
+    - name: Upload CLI Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: maf_cli-${{ matrix.os }}
+        path: maf_cli*

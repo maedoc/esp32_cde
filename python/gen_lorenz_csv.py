@@ -23,7 +23,7 @@ def compute_acf(x, lags=100):
     return r[:lags]
 
 def generate_lorenz_data(n_samples=1000):
-    print(f"Generating {n_samples} Lorenz system samples with PSD + Moments + ACF(100)...")
+    print(f"Generating {n_samples} Lorenz system samples with PSD + Moments...")
     
     params = []
     features = []
@@ -59,11 +59,8 @@ def generate_lorenz_data(n_samples=1000):
             moments.append(np.var(series))
             moments.append(kurtosis(series))
             
-        # 3. ACF of x
-        acf_x = compute_acf(x_ts, lags=100)
-            
         # Combine
-        feat_vec = np.concatenate([log_Pxx, moments, acf_x])
+        feat_vec = np.concatenate([log_Pxx, moments])
         
         params.append([sigma, rho, beta])
         features.append(feat_vec)

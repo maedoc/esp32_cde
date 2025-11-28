@@ -197,9 +197,13 @@ class MAF_C_Wrapper:
         if features.ndim == 1:
             features = features.reshape(1, -1)
 
-        # Infer param_dim from model (we'll need to pass it or query it)
-        # For now, assume we know it
-        param_dim = 2  # Will be passed as parameter later
+        # Infer param_dim from model
+        if hasattr(self, '_weights'):
+            param_dim = self._weights.param_dim
+        else:
+            # Fallback if weights struct not available (shouldn't happen if load_model called)
+            # We could try to read it from C memory if we really needed to, but for now raise error
+            raise RuntimeError("Model weights not available to determine param_dim")
 
         samples_out = np.zeros((n_samples, param_dim), dtype=np.float32)
 
