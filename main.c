@@ -8,8 +8,8 @@
 #include <time.h>
 #include "maf.h"
 
-#define MAX_LINE_LEN 4096
-#define MAX_TOKENS 1024
+#define MAX_LINE_LEN 65536
+#define MAX_TOKENS 4096
 
 /* ========================================================================== */
 /* CSV Utilities                                                              */
@@ -432,13 +432,9 @@ maf_model_t* init_random_model(int n_flows, int D, int C, int H) {
     
                     
     
-                    /* Set for mu part */
+                    /* Set for M2 (shared mask for mu and alpha, size D*H) */
     
-                    g_M2[k*2*D*H + d*H + j] = val;
-    
-                    /* Set for alpha part */
-    
-                    g_M2[k*2*D*H + (D+d)*H + j] = val;
+                    g_M2[k*D*H + d*H + j] = val;
     
                     
     
@@ -510,6 +506,21 @@ int cmp_float(const void* a, const void* b) {
     return (fa > fb) - (fa < fb);
 }
 
+void print_help_train() {
+    printf("Usage: maf_cli train [options]\n\n");
+    printf("Options:\n");
+    printf("  --features <file>    CSV file with feature data (required)\n");
+    printf("  --params <file>      CSV file with target parameter data (required)\n");
+    printf("  --out <file>         Output model file (default: model.maf)\n");
+    printf("  --load <file>        Load initial model weights from file\n");
+    printf("  --hidden <int>       Hidden units per layer (default: 16)\n");
+    printf("  --blocks <int>       Number of flow blocks (default: 5)\n");
+    printf("  --epochs <int>       Training epochs (default: 100)\n");
+    printf("  --lr <float>         Learning rate (default: 0.001)\n");
+    printf("  --batch <int>        Batch size (default: 32)\n");
+    printf("  --skip-header        Skip first line of CSV files\n");
+}
+
 void cmd_train(int argc, char** argv) {
     char *feat_file=NULL, *param_file=NULL, *out_file="model.maf", *load_file=NULL;
     int hidden=16, blocks=5, epochs=100, batch_size=32;
@@ -517,7 +528,11 @@ void cmd_train(int argc, char** argv) {
     bool skip=false;
 
     for(int i=0; i<argc; i++) {
-        if(!strcmp(argv[i], "--features")) feat_file = argv[++i];
+        if(!strcmp(argv[i], "--help") || !strcmp(argv[i], "-h")) {
+            print_help_train();
+            exit(0);
+        }
+        else if(!strcmp(argv[i], "--features")) feat_file = argv[++i];
         else if(!strcmp(argv[i], "--params")) param_file = argv[++i];
         else if(!strcmp(argv[i], "--out")) out_file = argv[++i];
         else if(!strcmp(argv[i], "--load")) load_file = argv[++i];
@@ -531,6 +546,7 @@ void cmd_train(int argc, char** argv) {
 
     if(!feat_file || !param_file) {
         fprintf(stderr, "Error: --features and --params required\n");
+        print_help_train();
         exit(1);
     }
 
@@ -623,13 +639,25 @@ void cmd_train(int argc, char** argv) {
 
     save_model(out_file, model);
     
-    maf_free_adam(adam);
-    maf_free_grad(grad);
-    maf_free_cache(cache);
-    maf_free_workspace(ws);
-    maf_free_model(model);
+    if(adam) maf_free_adam(adam);
+    if(grad) maf_free_grad(grad);
+    if(cache) maf_free_cache(cache);
+    if(ws) maf_free_workspace(ws);
+    if(model) maf_free_model(model);
     free_dataset(F);
     free_dataset(P);
+}
+
+void print_help_infer() {
+    printf("Usage: maf_cli infer [options]\n\n");
+    printf("Options:\n");
+    printf("  --model <file>       Path to trained model file (required)\n");
+    printf("  --features <file>    CSV file with feature data (required)\n");
+    printf("  --out <file>         Output CSV file (default: out.csv)\n");
+    printf("  --samples <int>      Number of samples per feature row (default: 1)\n");
+    printf("  --mode <string>      Inference mode: 'sample', 'stats', 'quantiles' (default: sample)\n");
+    printf("  --quantiles-list <str> Comma-separated list of quantiles (default: 0.05,0.5,0.95)\n");
+    printf("  --skip-header        Skip first line of feature CSV\n");
 }
 
 void cmd_infer(int argc, char** argv) {
@@ -640,7 +668,11 @@ void cmd_infer(int argc, char** argv) {
     bool skip=false;
 
     for(int i=0; i<argc; i++) {
-        if(!strcmp(argv[i], "--model")) model_file = argv[++i];
+        if(!strcmp(argv[i], "--help") || !strcmp(argv[i], "-h")) {
+            print_help_infer();
+            exit(0);
+        }
+        else if(!strcmp(argv[i], "--model")) model_file = argv[++i];
         else if(!strcmp(argv[i], "--features")) feat_file = argv[++i];
         else if(!strcmp(argv[i], "--out")) out_file = argv[++i];
         else if(!strcmp(argv[i], "--samples")) n_samples = atoi(argv[++i]);
@@ -651,6 +683,7 @@ void cmd_infer(int argc, char** argv) {
 
     if(!model_file || !feat_file) {
         fprintf(stderr, "Error: --model and --features required\n");
+        print_help_infer();
         exit(1);
     }
 
@@ -763,15 +796,50 @@ void cmd_infer(int argc, char** argv) {
     free_dataset(F);
 }
 
+void cmd_mcp(int argc, char** argv) {
+    char command[4096];
+    snprintf(command, sizeof(command), "python3 python/maf_mcp.py");
+    for(int i=0; i<argc; i++) {
+         strncat(command, " ", sizeof(command) - strlen(command) - 1);
+         strncat(command, argv[i], sizeof(command) - strlen(command) - 1);
+    }
+    int ret = system(command);
+    if(ret == -1) {
+        fprintf(stderr, "Error executing python/maf_mcp.py\n");
+        exit(1);
+    }
+    /* Simple exit mapping */
+    exit(0);
+}
+
+void print_help() {
+    printf("Usage: maf_cli <command> [options]\n\n");
+    printf("Commands:\n");
+    printf("  train      Train a MAF model from CSV data\n");
+    printf("  infer      Run inference using a trained model\n");
+    printf("  mcp        Start the Model Context Protocol (MCP) server\n");
+    printf("\nRun 'maf_cli <command> --help' for command-specific help.\n");
+}
+
 int main(int argc, char** argv) {
     if(argc < 2) {
-        printf("Usage: %s <train|infer> [args]\n", argv[0]);
+        print_help();
         return 1;
+    }
+
+    if(!strcmp(argv[1], "--help") || !strcmp(argv[1], "-h")) {
+        print_help();
+        return 0;
     }
 
     if(!strcmp(argv[1], "train")) cmd_train(argc-1, argv+1);
     else if(!strcmp(argv[1], "infer")) cmd_infer(argc-1, argv+1);
-    else printf("Unknown command %s\n", argv[1]);
+    else if(!strcmp(argv[1], "mcp")) cmd_mcp(argc-1, argv+1);
+    else {
+        printf("Unknown command %s\n", argv[1]);
+        print_help();
+        return 1;
+    }
 
     return 0;
 }
