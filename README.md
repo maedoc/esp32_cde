@@ -7,13 +7,37 @@ A production-ready implementation of **Masked Autoregressive Flows (MAF)** for c
 This project provides a complete solution for implementing complex conditional distributions on resource-constrained embedded systems:
 
 - **Standalone C Library** (`components/esp32_cde/`) - ~500 lines, ~5KB memory footprint
+- **Cross-Platform CLI** (`cli/`) - Train and run models on Linux, macOS, and Windows
 - **Python Training Pipeline** (`python/`) - Train models, export to C headers
 - **Validation Framework** (`python/test_maf_c.py`) - Verifies C implementation matches Python exactly
 - **Complete ESP-IDF Integration** - Ready for ESP32 deployment
 
 ## Quick Start
 
-### Train & Export a Model
+### CLI Tool (No Python Required for Inference)
+
+The project includes a standalone Command Line Interface (CLI) for training and running MAF models on desktop systems (Linux, macOS, Windows).
+
+#### Build the CLI
+```bash
+./test_cli.sh  # Builds and runs tests
+# Or manually:
+cd cli && mkdir build && cd build && cmake .. && cmake --build .
+```
+
+#### usage
+```bash
+# Train a model from CSV data
+./maf_cli train --features data.csv --params targets.csv --out model.maf
+
+# Run inference
+./maf_cli infer --model model.maf --features new_data.csv --out predictions.csv
+
+# Start MCP Server (Model Context Protocol)
+./maf_cli mcp
+```
+
+### Train & Export a Model (Python)
 
 ```bash
 # Train a MAF model and export to C header
@@ -205,6 +229,27 @@ void app_main(void)
     maf_free_model(model);
 }
 ```
+
+### Lorenz System Case Study
+
+We demonstrate the power of CDE by estimating the chaotic parameters of a Lorenz system ($\sigma, \rho, \beta$) given short observed trajectories. This is a classic "inverse problem" where the mapping from parameters to trajectory is deterministic, but the inverse is complex and multivalued.
+
+**Workflow:**
+1.  **Generate Data**: Simulate Lorenz attractors with random parameters.
+2.  **Train MAF**: Learn $p(\text{params} | \text{trajectory})$.
+3.  **Inference**: Given a new trajectory, sample the posterior distribution of parameters.
+
+**Python Workflow:**
+```bash
+cd python
+python run_lorenz_workflow.py
+python plot_lorenz.py
+```
+
+**Results:**
+The pair plots below show the estimated posterior distribution (blue dots) vs the true parameters (red lines/crosses). The model successfully captures the uncertainty and correlation between parameters.
+
+![Lorenz Posterior Pair Plot](lorenz_posterior.png)
 
 ### Model Integration Options
 
