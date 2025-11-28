@@ -3,10 +3,15 @@
  * @brief MAF inference implementation
  */
 
+#define _USE_MATH_DEFINES
 #include "maf.h"
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846f
+#endif
 
 /* Simple random number generator for sampling (LCG) */
 static uint32_t maf_rng_state = 12345;

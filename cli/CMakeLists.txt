@@ -6,9 +6,11 @@ set(CMAKE_C_STANDARD 99)
 # Compilation flags for Release build
 if(MSVC)
     add_compile_options(/O2 /fp:fast)
-    add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+    add_definitions(-D_CRT_SECURE_NO_WARNINGS -D_USE_MATH_DEFINES)
+    # Suppress conversion warnings for now to keep build log clean
+    add_compile_options(/wd4244 /wd4018)
 else()
-    add_compile_options(-O3 -ffast-math -Wall -Wextra)
+    add_compile_options(-O3 -Wall -Wextra)
 endif()
 
 # Include directories
