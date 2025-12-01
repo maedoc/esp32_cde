@@ -14,7 +14,7 @@ This project provides a complete solution for implementing complex conditional d
 
 ## Quick Start
 
-### CLI Tool (No Python Required for Inference)
+### CLI Tool
 
 The project includes a standalone Command Line Interface (CLI) for training and running MAF models on desktop systems (Linux, macOS, Windows).
 
@@ -389,7 +389,6 @@ export_maf_to_header(model, 'my_model.h', 'maf_model')
 - **MAF_QUICKSTART.md** - Quick start guide with examples
 - **MAF_IMPLEMENTATION.md** - Complete technical documentation
 - **python/README.md** - Python training scripts documentation
-- **CLAUDE.md** - Development instructions for Claude Code
 
 ## API Reference
 
